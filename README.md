@@ -171,6 +171,13 @@ Pengujian dilakukan dengan mengubah konfigurasi IPv4 pada setiap perangkat pengg
 | 11 | PC-KANTOR-PELABUHAN | 10.57.160.10 | 10.57.160.1 | Berhasil |
 | 12 | PC-CCTV-KOTA | 10.56.128.10 | 10.56.128.1 | Berhasil |
 
+Beberapa contoh hasil pengujian:  
+<img width="518" height="185" alt="Screenshot 2026-11-02 183120" src="https://github.com/user-attachments/assets/d59610d0-ce84-4858-9175-fb1f813379d9" />  
+<img width="524" height="178" alt="Screenshot 2026-11-02 182944" src="https://github.com/user-attachments/assets/7fcb418f-6cd8-49a4-a764-5cad03cf2bc3" />  
+<img width="518" height="177" alt="Screenshot 2026-11-02 183024" src="https://github.com/user-attachments/assets/2a4af0e5-7cd2-402f-a507-d925a919269f" />  
+<img width="523" height="187" alt="Screenshot 2026-11-02 183110" src="https://github.com/user-attachments/assets/7d6a257a-e322-4766-90f7-0052b273c919" />  
+<img width="524" height="182" alt="Screenshot 2026-11-02 183038" src="https://github.com/user-attachments/assets/ab41d754-b9f1-4e8e-b678-d5ae2912bc54" />  
+
 Seluruh perangkat memperoleh DNS Server 10.56.160.2. Pada setiap perangkat, proses pengujian menampilkan pesan **DHCP request successful**.
 
 ### Verifikasi DHCP Binding
@@ -179,26 +186,15 @@ Selain melalui IP Configuration pada perangkat pengguna, pemberian alamat IP jug
 
 Contoh hasil verifikasi pada R-PUSAT:
 
-```cisco
-Router#show ip dhcp binding
+<img width="521" height="250" alt="image" src="https://github.com/user-attachments/assets/4f68f5c2-44fa-4ad9-b362-0fe306b603df" />
 
-IP address       Client-ID/              Lease expiration        Type
-                 Hardware address
-10.57.192.10     0060.4745.365B           --                     Automatic
-```
 
 Hasil tersebut menunjukkan bahwa alamat 10.57.192.10 telah tercatat sebagai alamat yang diberikan secara otomatis kepada PC-PEGAWAI.
 
 Verifikasi pada R-PELABUHAN:
 
-```cisco
-Router#show ip dhcp binding
+<img width="522" height="216" alt="image" src="https://github.com/user-attachments/assets/84528e1b-4214-4c48-9c4e-b97254116516" />
 
-IP address       Client-ID/              Lease expiration        Type
-                 Hardware address
-10.57.128.10     00E0.F7C1.6B7A           --                     Automatic
-10.57.160.10     00D0.BCB4.A1AC           --                     Automatic
-```
 
 Hasil tersebut membuktikan bahwa PC-SCADA dan PC-KANTOR-PELABUHAN telah memperoleh alamat IP melalui DHCP pada R-PELABUHAN.
 
