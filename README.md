@@ -1,8 +1,6 @@
 # MidProject-Jarkom_K7_085_100_116
 
-## 1. Penjelasan Desain Topologi
-
-### 1.1 Pemilihan Skema Pengalamatan
+# Soal 1 - Topologi
 
 Pada implementasi jaringan Smart City Kota Surabaya, kelompok menggunakan skema **Classless Inter-Domain Routing (CIDR)** sebagai metode pengalamatan jaringan.
 
@@ -10,7 +8,7 @@ CIDR dipilih karena memungkinkan penggunaan prefix yang berbeda sesuai kebutuhan
 
 Jaringan menggunakan blok alamat `10.56.0.0/15` yang dibagi menjadi beberapa subnet untuk masing-masing lokasi. Setiap LAN menggunakan alamat host pertama sebagai default gateway sesuai ketentuan tugas.
 
-### 1.2 Desain Topologi Jaringan
+### Desain Topologi Jaringan
 
 <img width="508" height="318" alt="image" src="https://github.com/user-attachments/assets/df919c3c-0454-4ce0-8517-dbc4c2d1a77e" />
 
@@ -21,7 +19,7 @@ Secara keseluruhan, perangkat jaringan terdiri atas delapan router, switch, pera
 
 R-PUSAT berfungsi sebagai pusat konektivitas yang menghubungkan router-router wilayah lainnya serta R-ISP untuk akses menuju jaringan internet. Sementara itu, R-UTARA berfungsi sebagai penghubung tambahan menuju R-PELABUHAN melalui link L6.
 
-### 1.3 Pertimbangan Pemilihan Perangkat
+### Pertimbangan Pemilihan Perangkat
 
 | Perangkat | Pertimbangan Pemilihan |
 |---|---|
@@ -32,7 +30,7 @@ R-PUSAT berfungsi sebagai pusat konektivitas yang menghubungkan router-router wi
 | Access Point-PT | Digunakan untuk menyediakan konektivitas wireless pada jaringan WiFi publik. |
 | Laptop-PT | Digunakan sebagai perangkat perwakilan pengguna yang mengakses jaringan melalui koneksi wireless. |
 
-### 1.4 Pertimbangan Media Koneksi
+### Pertimbangan Media Koneksi
 
 Media koneksi dipilih berdasarkan kebutuhan komunikasi antarperangkat dan karakteristik masing-masing jaringan.
 
@@ -56,7 +54,7 @@ Jaringan WiFi publik di wilayah Utara, Barat, Timur, dan Selatan menggunakan Acc
 
 Pemilihan wireless bertujuan memberikan fleksibilitas konektivitas bagi pengguna yang mengakses jaringan publik.
 
-### 1.5 Pertimbangan Pembagian Switch dan LAN
+### Pertimbangan Pembagian Switch dan LAN
 
 Setiap wilayah memiliki switch yang dipisahkan berdasarkan subnet atau fungsi jaringan. Pemisahan ini dilakukan agar perangkat dalam satu kelompok jaringan terhubung melalui switch masing-masing.
 
@@ -66,7 +64,7 @@ Pembagian serupa diterapkan pada wilayah lainnya, seperti WiFi publik, jaringan 
 
 Pemisahan switch tersebut membantu pengelolaan perangkat berdasarkan fungsi dan subnet masing-masing serta memudahkan proses konfigurasi dan pengujian jaringan.
 
-### 1.6 Pertimbangan Jumlah Perangkat Perwakilan
+### Pertimbangan Jumlah Perangkat Perwakilan
 
 Dalam implementasi menggunakan Cisco Packet Tracer, kelompok hanya memasang satu perangkat perwakilan untuk setiap LAN sesuai ketentuan tugas.
 
@@ -74,8 +72,133 @@ Meskipun demikian, perhitungan subnet tetap menggunakan seluruh kebutuhan host y
 
 Pendekatan ini digunakan untuk menyederhanakan simulasi tanpa mengubah perencanaan pengalamatan jaringan.
 
-### 1.7 Kesimpulan Desain
+### Kesimpulan Desain
 
 Desain topologi ini dibuat untuk merepresentasikan jaringan Smart City Kota Surabaya yang menghubungkan berbagai wilayah melalui jaringan backbone dengan R-PUSAT sebagai pusat konektivitas.
 
 Penggunaan router, switch, server, access point, serta kombinasi media kabel dan wireless disesuaikan dengan kebutuhan masing-masing jaringan. Dengan desain tersebut, jaringan diharapkan dapat mendukung komunikasi antarwilayah, akses pengguna, serta penyediaan layanan jaringan sesuai ketentuan Mid-Project Komunikasi Data dan Jaringan Komputer.
+
+
+# Soal 4 - Konfigurasi DHCP (Dynamic Host Configuration Protocol)
+
+Konfigurasi DHCP dilakukan untuk memberikan alamat IP secara otomatis kepada perangkat pengguna pada jaringan Smart City Surabaya. Setiap perangkat pengguna memperoleh konfigurasi jaringan berupa IP Address, Subnet Mask, Default Gateway, dan DNS Server tanpa perlu melakukan pengaturan secara manual.
+
+Sesuai ketentuan soal, seluruh interface router dan server menggunakan alamat IP statis. Khusus subnet CCTV Kota, alokasi alamat IP dilakukan oleh DHCP Server yang berada di LAN Server dan Storage DC, bukan oleh router.
+
+Implementasi DHCP dilakukan menggunakan dua metode, yaitu DHCP Server pada SERVER-DC untuk subnet CCTV Kota dan DHCP pool pada masing-masing router untuk LAN pengguna lainnya.
+
+### Konfigurasi IP Statis Server
+
+Sebelum mengaktifkan layanan DHCP, kedua server dikonfigurasi menggunakan alamat IP statis.
+
+| Perangkat | IP Address | Subnet Mask | Default Gateway | DNS Server |
+|---|---|---|---|---|
+| SERVER-DC | 10.56.160.2 | 255.255.255.0 | 10.56.160.1 | 10.56.160.2 |
+| SERVER-BALAI | 10.57.200.2 | 255.255.255.224 | 10.57.200.1 | 10.56.160.2 |
+
+### DHCP Server untuk CCTV Kota
+
+DHCP Server dikonfigurasi pada SERVER-DC yang terhubung ke LAN Server dan Storage DC. Pada menu **Services → DHCP**, layanan DHCP diaktifkan dan dibuat pool dengan nama `CCTV_POOL`.
+
+Konfigurasi pool CCTV Kota:
+
+| Parameter | Nilai |
+|---|---|
+| Pool Name | CCTV_POOL |
+| Default Gateway | 10.56.128.1 |
+| DNS Server | 10.56.160.2 |
+| Start IP Address | 10.56.128.10 |
+| Subnet Mask | 255.255.224.0 |
+| Maximum Users | 6000 |
+| DHCP Service | On |
+
+Agar permintaan DHCP dari subnet CCTV Kota dapat diteruskan menuju SERVER-DC yang berada di subnet berbeda, dilakukan konfigurasi DHCP Relay pada interface G0/0 milik R-DC menggunakan perintah:
+
+```cisco
+interface gigabitEthernet 0/0
+ip helper-address 10.56.160.2
+```
+
+Dengan konfigurasi tersebut, permintaan DHCP dari perangkat CCTV diteruskan oleh R-DC ke SERVER-DC. Dengan demikian, alamat IP CCTV Kota diperoleh dari DHCP Server, bukan dari router.
+
+### DHCP pada Router untuk LAN Pengguna Lainnya
+
+Untuk LAN pengguna selain CCTV Kota, DHCP dikonfigurasi secara lokal pada router yang menjadi gateway masing-masing subnet.
+
+Sebelum membuat DHCP pool, alamat IP 10.1 sampai 10.9 pada setiap subnet dikecualikan dari pembagian DHCP. Hal ini bertujuan untuk menghindari konflik dengan alamat gateway dan alamat yang disediakan untuk kebutuhan statis.
+
+Konfigurasi DHCP menggunakan tiga parameter utama:
+- `network` untuk menentukan network ID dan subnet mask.
+- `default-router` untuk memberikan alamat gateway kepada perangkat pengguna.
+- `dns-server` untuk memberikan alamat DNS Server, yaitu 10.56.160.2.
+
+Berikut daftar DHCP pool yang dikonfigurasi:
+
+| Router | Nama DHCP Pool | Network ID / Prefix | Gateway | Awal IP DHCP |
+|---|---|---|---|---|
+| R-PUSAT | PEGAWAI_BALAI | 10.57.192.0/21 | 10.57.192.1 | 10.57.192.10 |
+| R-UTARA | WIFI_UTARA | 10.56.0.0/18 | 10.56.0.1 | 10.56.0.10 |
+| R-UTARA | SENSOR_LALIN_UTARA | 10.56.64.0/23 | 10.56.64.1 | 10.56.64.10 |
+| R-BARAT | WIFI_BARAT | 10.56.192.0/19 | 10.56.192.1 | 10.56.192.10 |
+| R-BARAT | PUSKESMAS_SEKOLAH | 10.56.224.0/24 | 10.56.224.1 | 10.56.224.10 |
+| R-TIMUR | WIFI_TIMUR | 10.57.0.0/19 | 10.57.0.1 | 10.57.0.10 |
+| R-TIMUR | SENSOR_BANJIR_TIMUR | 10.57.32.0/22 | 10.57.32.1 | 10.57.32.10 |
+| R-SELATAN | WIFI_SELATAN | 10.57.64.0/19 | 10.57.64.1 | 10.57.64.10 |
+| R-SELATAN | PJU_SELATAN | 10.57.96.0/25 | 10.57.96.1 | 10.57.96.10 |
+| R-PELABUHAN | SENSOR_SCADA_PELABUHAN | 10.57.128.0/19 | 10.57.128.1 | 10.57.128.10 |
+| R-PELABUHAN | KANTOR_PELABUHAN | 10.57.160.0/25 | 10.57.160.1 | 10.57.160.10 |
+
+DNS Server pada seluruh DHCP pool diarahkan ke alamat 10.56.160.2, yaitu SERVER-DC. Alamat tersebut dipersiapkan untuk layanan DNS pada Soal 8.
+
+### Pengujian DHCP
+
+Pengujian dilakukan dengan mengubah konfigurasi IPv4 pada setiap perangkat pengguna menjadi DHCP melalui menu **Desktop → IP Configuration**. Hasil pengujian menunjukkan bahwa seluruh perangkat perwakilan memperoleh alamat IP secara otomatis beserta subnet mask, default gateway, dan DNS Server yang sesuai dengan subnet masing-masing.
+
+### Hasil Pengujian Perangkat Pengguna
+
+| No. | Perangkat | IPv4 Address yang Diperoleh | Gateway | Hasil |
+|---|---|---|---|---|
+| 1 | PC-PEGAWAI | 10.57.192.10 | 10.57.192.1 | Berhasil |
+| 2 | LAPTOP-WIFI-UTARA | 10.56.0.10 | 10.56.0.1 | Berhasil |
+| 3 | PC-SENSOR-LALIN | 10.56.64.10 | 10.56.64.1 | Berhasil |
+| 4 | LAPTOP-WIFI-BARAT | 10.56.192.10 | 10.56.192.1 | Berhasil |
+| 5 | PC-PUSKESMAS | 10.56.224.10 | 10.56.224.1 | Berhasil |
+| 6 | LAPTOP-WIFI-TIMUR | 10.57.0.10 | 10.57.0.1 | Berhasil |
+| 7 | PC-SENSOR-BANJIR | 10.57.32.10 | 10.57.32.1 | Berhasil |
+| 8 | LAPTOP-WIFI-SELATAN | 10.57.64.10 | 10.57.64.1 | Berhasil |
+| 9 | PC-PJU | 10.57.96.10 | 10.57.96.1 | Berhasil |
+| 10 | PC-SCADA | 10.57.128.10 | 10.57.128.1 | Berhasil |
+| 11 | PC-KANTOR-PELABUHAN | 10.57.160.10 | 10.57.160.1 | Berhasil |
+| 12 | PC-CCTV-KOTA | 10.56.128.10 | 10.56.128.1 | Berhasil |
+
+Seluruh perangkat memperoleh DNS Server 10.56.160.2. Pada setiap perangkat, proses pengujian menampilkan pesan **DHCP request successful**.
+
+### Verifikasi DHCP Binding
+
+Selain melalui IP Configuration pada perangkat pengguna, pemberian alamat IP juga diverifikasi melalui perintah `show ip dhcp binding` pada router.
+
+Contoh hasil verifikasi pada R-PUSAT:
+
+```cisco
+Router#show ip dhcp binding
+
+IP address       Client-ID/              Lease expiration        Type
+                 Hardware address
+10.57.192.10     0060.4745.365B           --                     Automatic
+```
+
+Hasil tersebut menunjukkan bahwa alamat 10.57.192.10 telah tercatat sebagai alamat yang diberikan secara otomatis kepada PC-PEGAWAI.
+
+Verifikasi pada R-PELABUHAN:
+
+```cisco
+Router#show ip dhcp binding
+
+IP address       Client-ID/              Lease expiration        Type
+                 Hardware address
+10.57.128.10     00E0.F7C1.6B7A           --                     Automatic
+10.57.160.10     00D0.BCB4.A1AC           --                     Automatic
+```
+
+Hasil tersebut membuktikan bahwa PC-SCADA dan PC-KANTOR-PELABUHAN telah memperoleh alamat IP melalui DHCP pada R-PELABUHAN.
+
