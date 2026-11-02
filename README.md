@@ -77,7 +77,146 @@ Pendekatan ini digunakan untuk menyederhanakan simulasi tanpa mengubah perencana
 Desain topologi ini dibuat untuk merepresentasikan jaringan Smart City Kota Surabaya yang menghubungkan berbagai wilayah melalui jaringan backbone dengan R-PUSAT sebagai pusat konektivitas.
 
 Penggunaan router, switch, server, access point, serta kombinasi media kabel dan wireless disesuaikan dengan kebutuhan masing-masing jaringan. Dengan desain tersebut, jaringan diharapkan dapat mendukung komunikasi antarwilayah, akses pengguna, serta penyediaan layanan jaringan sesuai ketentuan Mid-Project Komunikasi Data dan Jaringan Komputer.
+  
+# Soal 3 - Static Routing
 
+Konfigurasi static routing dilakukan agar seluruh jaringan LAN pada topologi Smart City Surabaya dapat saling berkomunikasi melalui router yang terhubung. Setiap router diberikan rute menuju jaringan yang tidak terhubung secara langsung menggunakan static route.
+
+Sesuai ketentuan soal, R-PUSAT dan R-UTARA harus memiliki static route menuju seluruh jaringan LAN yang berada di bawah router cabangnya. Selain itu, setiap router cabang menggunakan default route untuk meneruskan paket menuju jaringan di luar jaringan lokalnya.
+
+### Konfigurasi Interface Router
+
+Sebelum melakukan konfigurasi routing, setiap interface router diberikan alamat IP statis sesuai tabel subnetting CIDR yang telah dibuat pada Soal 2.
+
+Interface LAN berfungsi sebagai gateway bagi perangkat pengguna, sedangkan interface serial digunakan untuk menghubungkan router-router pada backbone jaringan.
+
+Seluruh interface yang digunakan telah dikonfigurasi dan menunjukkan status `up/up` berdasarkan pemeriksaan menggunakan perintah:
+
+```cisco
+show ip interface brief
+```
+
+### Konfigurasi Static Route pada R-PUSAT
+
+R-PUSAT berfungsi sebagai router pusat yang menghubungkan jaringan Balai Kota dengan router-router cabang lainnya. Oleh karena itu, R-PUSAT dikonfigurasi dengan static route menuju seluruh LAN yang berada di bawah R-DC, R-UTARA, R-BARAT, R-TIMUR, R-SELATAN, dan R-PELABUHAN.
+
+Berikut daftar static route pada R-PUSAT:
+
+| Jaringan Tujuan | Next Hop | Keterangan |
+|---|---|---|
+| 10.56.128.0/19 | 10.56.161.2 | LAN CCTV Kota |
+| 10.56.160.0/24 | 10.56.161.2 | LAN Server dan Storage DC |
+| 10.56.0.0/18 | 10.56.66.2 | LAN WiFi Publik Utara |
+| 10.56.64.0/23 | 10.56.66.2 | LAN Sensor Lalu Lintas Utara |
+| 10.56.192.0/19 | 10.56.225.2 | LAN WiFi Publik Barat |
+| 10.56.224.0/24 | 10.56.225.2 | LAN Puskesmas dan Sekolah Barat |
+| 10.57.0.0/19 | 10.57.36.2 | LAN WiFi Publik Timur |
+| 10.57.32.0/22 | 10.57.36.2 | LAN Sensor Banjir Timur |
+| 10.57.64.0/19 | 10.57.96.130 | LAN WiFi Publik Selatan |
+| 10.57.96.0/25 | 10.57.96.130 | LAN PJU Pintar Selatan |
+| 10.57.128.0/19 | 10.56.66.2 | LAN Sensor dan SCADA Pelabuhan |
+| 10.57.160.0/25 | 10.56.66.2 | LAN Kantor Pelabuhan |
+| 10.57.160.128/30 | 10.56.66.2 | Link L6 menuju R-PELABUHAN |
+
+Selain static route menuju jaringan cabang, R-PUSAT juga dikonfigurasi dengan default route menuju R-ISP menggunakan perintah:
+
+```cisco
+ip route 0.0.0.0 0.0.0.0 203.0.113.30
+```
+
+Default route tersebut digunakan untuk meneruskan paket menuju jaringan di luar jaringan internal Smart City melalui R-ISP.  
+
+<img width="523" height="529" alt="Screenshot 2026-11-02 184955" src="https://github.com/user-attachments/assets/3fc9a3a0-dd28-4f50-bd0f-07d4bf882bdb" />  
+
+R-PUSAT memiliki static route menuju seluruh LAN cabang dan default route menuju R-ISP.
+
+### Konfigurasi Static Route pada R-UTARA
+
+R-UTARA memiliki dua jaringan LAN lokal, yaitu WiFi Publik Utara dan Sensor Lalu Lintas Utara. R-UTARA juga terhubung ke R-PELABUHAN melalui link L6.
+
+Sesuai ketentuan soal, R-UTARA dikonfigurasi dengan static route menuju seluruh LAN milik R-PELABUHAN.
+
+Konfigurasi static route:
+
+```cisco
+ip route 10.57.128.0 255.255.224.0 10.57.160.130
+ip route 10.57.160.0 255.255.255.128 10.57.160.130
+```
+
+Default route pada R-UTARA diarahkan menuju R-PUSAT:
+
+```cisco
+ip route 0.0.0.0 0.0.0.0 10.56.66.1
+```
+
+Dengan demikian, R-UTARA dapat meneruskan paket menuju jaringan Pelabuhan melalui L6 dan meneruskan paket menuju jaringan lainnya melalui R-PUSAT.
+
+<img width="527" height="314" alt="Screenshot 2026-11-02 185122" src="https://github.com/user-attachments/assets/7448d760-827f-4d6d-a958-3a1653e8df1d" />  
+  
+R-UTARA memiliki static route menuju LAN Sensor dan SCADA Pelabuhan serta LAN Kantor Pelabuhan.  
+
+### Konfigurasi Default Route pada Router Cabang
+
+Router cabang lainnya dikonfigurasi menggunakan default route menuju router yang menjadi jalur keluar atau upstream masing-masing.
+
+| Router | Default Route / Next Hop | Tujuan |
+|---|---|---|
+| R-DC | 10.56.161.1 | Menuju R-PUSAT melalui L1 |
+| R-BARAT | 10.56.225.1 | Menuju R-PUSAT melalui L5 |
+| R-TIMUR | 10.57.36.1 | Menuju R-PUSAT melalui L4 |
+| R-SELATAN | 10.57.96.129 | Menuju R-PUSAT melalui L3 |
+| R-PELABUHAN | 10.57.160.129 | Menuju R-UTARA melalui L6 |
+
+Contoh konfigurasi default route pada R-PELABUHAN:
+
+```cisco
+ip route 0.0.0.0 0.0.0.0 10.57.160.129
+```
+
+Konfigurasi tersebut memungkinkan router cabang meneruskan paket menuju jaringan yang tidak tercantum sebagai jaringan lokal maupun static route khusus melalui router upstream.
+
+<img width="521" height="256" alt="image" src="https://github.com/user-attachments/assets/7b1d7e3b-18b1-42b5-8988-c0814af33f86" />  
+  
+Router cabang memiliki default route menuju router upstream masing-masing.  
+Jaringan yang terhubung langsung ditampilkan sebagai connected route, sedangkan jaringan yang dikonfigurasi secara manual ditampilkan sebagai static route.  
+
+### Pengujian Konektivitas
+
+Pengujian dilakukan menggunakan perintah `ping` untuk memastikan bahwa perangkat dan router dapat menjangkau jaringan tujuan.
+
+Beberapa hasil pengujian yang berhasil:
+
+| Sumber Pengujian | Tujuan | Hasil |
+|---|---|---|
+| PC-PEGAWAI | Gateway CCTV Kota (10.56.128.1) | Berhasil |
+| PC-CCTV-KOTA | PC-PEGAWAI (10.57.192.2) | Berhasil |
+| PC-PEGAWAI | Gateway WiFi Publik Utara (10.56.0.1) | Berhasil |
+| PC-PEGAWAI | Gateway WiFi Publik Barat (10.56.192.1) | Berhasil |
+| PC-PEGAWAI | Gateway WiFi Publik Timur (10.57.0.1) | Berhasil |
+| PC-PEGAWAI | Gateway WiFi Publik Selatan (10.57.64.1) | Berhasil |
+| PC-PEGAWAI | Gateway Puskesmas dan Sekolah Barat (10.56.224.1) | Berhasil |
+| PC-PEGAWAI | Gateway Sensor Banjir Timur (10.57.32.1) | Berhasil |
+| PC-PEGAWAI | Gateway Sensor Lalu Lintas Utara (10.56.64.1) | Berhasil |
+| PC-PEGAWAI | Gateway PJU Pintar Selatan (10.57.96.1) | Berhasil |
+| PC-PEGAWAI | Gateway Sensor dan SCADA Pelabuhan (10.57.128.1) | Berhasil |
+| PC-PEGAWAI | Gateway Kantor Pelabuhan (10.57.160.1) | Berhasil |
+| PC-PEGAWAI | Gateway Server dan Storage DC (10.56.160.1) | Berhasil |
+| PC-PEGAWAI | Gateway Server Balai Kota (10.57.200.1) | Berhasil |  
+
+<img width="524" height="530" alt="ping-pgwai" src="https://github.com/user-attachments/assets/bfd2bb58-2474-421f-bbe1-4dd515961695" />  
+<img width="524" height="528" alt="ping-from-cctv-to-pegawai" src="https://github.com/user-attachments/assets/dce86cd7-349c-4e76-beba-dd9f84cd3e72" />  
+
+Pengujian tambahan dilakukan dari R-UTARA menuju gateway LAN Pelabuhan:
+
+- `ping 10.57.128.1` — berhasil.
+- `ping 10.57.160.1` — berhasil.
+  
+<img width="521" height="220" alt="image" src="https://github.com/user-attachments/assets/997527b7-3f54-4bac-a234-5c22660b431a" />  
+
+Pengujian dari R-PELABUHAN menuju gateway LAN Pegawai Balai Kota juga berhasil setelah penambahan static route untuk jaringan link L6 pada R-PUSAT.  
+<img width="523" height="141" alt="image" src="https://github.com/user-attachments/assets/e5fe4d84-88f1-4fe9-bbd5-8d54c502be1c" />  
+
+Hasil pengujian tersebut menunjukkan bahwa routing antarjaringan telah berjalan sesuai jalur yang dikonfigurasi.  
 
 # Soal 4 - Konfigurasi DHCP (Dynamic Host Configuration Protocol)
 
