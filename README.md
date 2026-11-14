@@ -549,6 +549,220 @@ Protokol **GRE (Generic Routing Encapsulation)** dirancang semata-mata untuk fun
 
 GRE tidak memiliki mekanisme kriptografi—baik algoritma enkripsi untuk menjaga kerahasiaan data (*confidentiality*), *hashing* untuk menjamin keutuhan data (*integrity*), maupun autentikasi pengirim (*authentication*). Akibatnya, seluruh muatan (*payload*) paket yang melewati tunnel GRE tetap dikirim dalam bentuk *plaintext* dan masih dapat dibaca apabila lalu lintas disadap (*packet sniffing*) di jalur backbone. Untuk mengamankan isi paket di dalam terowongan GRE, diperlukan protokol keamanan tambahan seperti **IPsec** (*GRE over IPsec*).
 
+# Soal 7 - Dynamic Routing OSPF
+
+Konfigurasi **Open Shortest Path First (OSPF)** dilakukan untuk menggantikan seluruh static route antar-router dengan routing dinamis, sehingga setiap router dapat saling bertukar informasi jaringan dan memilih jalur secara otomatis. Sesuai ketentuan soal, pengerjaan dilakukan pada file terpisah, yaitu `K7_CIDR_OSPF.pkt`, yang merupakan salinan dari file utama `K7_CIDR.pkt`.
+
+Selain mengganti static route, ditambahkan link cadangan **L7** antara R-DC dan R-UTARA agar jaringan memiliki jalur alternatif ketika salah satu link backbone terputus.
+
+### Penambahan Link Cadangan L7
+
+Pada topologi awal, setiap router wilayah hanya memiliki satu jalur menuju R-PUSAT. Dengan menambahkan L7, terbentuk jalur melingkar antara R-PUSAT, R-DC, dan R-UTARA sehingga lalu lintas dapat dialihkan apabila link L1 atau L2 terputus.
+
+| Perangkat | Interface | IP Address | Subnet Mask | Keterangan |
+|---|---|---|---|---|
+| R-DC | GigabitEthernet0/2 | 10.56.161.5 | 255.255.255.252 | Link L7 menuju R-UTARA |
+| R-UTARA | GigabitEthernet0/2 | 10.56.161.6 | 255.255.255.252 | Link L7 menuju R-DC |
+
+Pertimbangan desain link L7:
+
+- **Alamat.** L7 menggunakan subnet `10.56.161.4/30` yang belum digunakan pada tabel subnetting. Subnet ini berada di dalam blok supernet R-DC (`10.56.128.0/18`) dan bersebelahan dengan link L1 (`10.56.161.0/30`).
+- **Media.** L7 menggunakan kabel Copper Cross-Over pada interface GigabitEthernet0/2. Interface tersebut belum terpakai pada R-DC maupun R-UTARA, sehingga link dapat ditambahkan tanpa memasang modul HWIC-2T baru dan tanpa mematikan router.
+- **Peran sebagai cadangan.** Interface L7 diberi nilai `ip ospf cost 200`, lebih besar daripada cost link serial backbone (64). Dengan demikian, L7 tidak dipilih selama link utama aktif dan baru digunakan ketika jalur utama terputus.
+
+Konfigurasi interface L7 pada R-DC:
+
+```cisco
+interface GigabitEthernet0/2
+ ip address 10.56.161.5 255.255.255.252
+ ip ospf cost 200
+ no shutdown
+```
+
+Konfigurasi interface L7 pada R-UTARA:
+
+```cisco
+interface GigabitEthernet0/2
+ ip address 10.56.161.6 255.255.255.252
+ ip ospf cost 200
+ no shutdown
+```
+
+![Link L7 pada topologi](screenshot/soal7-l7-topologi.png)
+
+![Status interface dan ping link L7 dari R-DC](screenshot/soal7-l7-ping.png)
+
+Hasil verifikasi menunjukkan bahwa interface GigabitEthernet0/2 pada R-DC berstatus `up/up` dan dapat menjangkau alamat `10.56.161.6` milik R-UTARA.
+
+### Penghapusan Static Route Antar-Router
+
+Seluruh static route antar-router yang dibuat pada Soal 3 dan Soal 6 dihapus menggunakan perintah `no ip route`. Satu-satunya static route yang dipertahankan adalah default route menuju internet pada R-PUSAT, sesuai ketentuan soal.
+
+| Router | Static Route yang Dihapus | Static Route yang Dipertahankan |
+|---|---|---|
+| R-PUSAT | Seluruh rute menuju LAN wilayah, rute link L6, dan rute LAN Pelabuhan melalui tunnel | `ip route 0.0.0.0 0.0.0.0 203.0.113.30` |
+| R-UTARA | Default route menuju R-PUSAT dan rute LAN Pelabuhan | - |
+| R-PELABUHAN | Default route menuju R-UTARA dan rute LAN Balai Kota melalui tunnel | - |
+| R-DC, R-BARAT, R-TIMUR, R-SELATAN | Default route menuju R-PUSAT | - |
+
+Contoh penghapusan pada R-UTARA:
+
+```cisco
+no ip route 0.0.0.0 0.0.0.0 10.56.66.1
+no ip route 10.57.128.0 255.255.224.0 10.57.160.130
+no ip route 10.57.160.0 255.255.255.128 10.57.160.130
+```
+
+Karena static route melalui tunnel ikut dihapus, pada file OSPF lalu lintas antara Balai Kota dan Pelabuhan mengikuti jalur hasil perhitungan OSPF. Pembuktian lalu lintas melalui Tunnel GRE (Soal 6) dilakukan pada file utama `K7_CIDR.pkt`.
+
+### Konfigurasi OSPF
+
+OSPF dikonfigurasi pada tujuh router internal menggunakan process ID 1 dan satu area, yaitu area 0. R-ISP tidak diikutkan agar tetap tidak memiliki rute menuju alamat privat internal.
+
+| Router | Router ID | Passive Interface |
+|---|---|---|
+| R-PUSAT | 1.1.1.1 | G0/0 (Pegawai Balai Kota), G0/1 (Server Balai Kota) |
+| R-DC | 2.2.2.2 | G0/0 (CCTV Kota), G0/1 (Server dan Storage DC) |
+| R-UTARA | 3.3.3.3 | G0/0 (WiFi Publik Utara), G0/1 (Sensor Lalu Lintas Utara) |
+| R-PELABUHAN | 4.4.4.4 | G0/0 (Sensor dan SCADA Pelabuhan), G0/1 (Kantor Pelabuhan) |
+| R-SELATAN | 5.5.5.5 | G0/0 (WiFi Publik Selatan), G0/1 (PJU Pintar Selatan) |
+| R-TIMUR | 6.6.6.6 | G0/0 (WiFi Publik Timur), G0/1 (Sensor Banjir Timur) |
+| R-BARAT | 7.7.7.7 | G0/0 (WiFi Publik Barat), G0/1 (Puskesmas dan Sekolah Barat) |
+
+Konfigurasi OSPF pada R-PUSAT:
+
+```cisco
+router ospf 1
+ router-id 1.1.1.1
+ network 10.56.0.0 0.1.255.255 area 0
+ passive-interface GigabitEthernet0/0
+ passive-interface GigabitEthernet0/1
+ default-information originate
+```
+
+Konfigurasi OSPF pada router lainnya menggunakan pola yang sama dengan Router ID masing-masing dan tanpa perintah `default-information originate`. Contoh pada R-DC:
+
+```cisco
+router ospf 1
+ router-id 2.2.2.2
+ network 10.56.0.0 0.1.255.255 area 0
+ passive-interface GigabitEthernet0/0
+ passive-interface GigabitEthernet0/1
+```
+
+Penjelasan konfigurasi:
+
+- `network 10.56.0.0 0.1.255.255 area 0` mengaktifkan OSPF pada seluruh interface yang beralamat di dalam blok `10.56.0.0/15`. Karena seluruh jaringan internal berada dalam satu blok CIDR, satu baris perintah yang sama dapat digunakan pada semua router. Wildcard mask `0.1.255.255` merupakan kebalikan dari subnet mask `/15` (`255.254.0.0`).
+- `passive-interface` membuat jaringan LAN tetap diumumkan ke router lain, tetapi router tidak mengirimkan pesan OSPF ke arah LAN pengguna. Interface GigabitEthernet0/2 pada R-DC dan R-UTARA tidak dijadikan passive karena digunakan sebagai link L7 antar-router.
+- `default-information originate` hanya dikonfigurasi pada R-PUSAT. Perintah ini menyebarkan default route menuju internet ke seluruh router lain melalui OSPF, sehingga router lain tidak memerlukan default route statis.
+
+### Verifikasi OSPF
+
+**1. Verifikasi Tetangga OSPF**
+
+Pemeriksaan dilakukan menggunakan perintah:
+
+```cisco
+show ip ospf neighbor
+```
+
+![Tetangga OSPF pada R-PUSAT](screenshot/soal7-ospf-neighbor-pusat.png)
+
+R-PUSAT memiliki lima tetangga berstatus `FULL`, yaitu R-DC (2.2.2.2), R-UTARA (3.3.3.3), R-SELATAN (5.5.5.5), R-TIMUR (6.6.6.6), dan R-BARAT (7.7.7.7).
+
+![Tetangga OSPF pada R-UTARA](screenshot/soal7-ospf-neighbor-utara.png)
+
+R-UTARA memiliki tiga tetangga berstatus `FULL`, yaitu R-PUSAT melalui Serial0/0/0, R-PELABUHAN melalui Serial0/0/1, dan R-DC melalui GigabitEthernet0/2. Hal ini menunjukkan bahwa link L7 telah menjadi bagian dari OSPF.
+
+**2. Verifikasi Tabel Routing**
+
+```cisco
+show ip route ospf
+```
+
+![Rute OSPF pada R-PUSAT](screenshot/soal7-ospf-route-pusat.png)
+
+Tabel routing R-PUSAT menampilkan rute berkode `O` menuju seluruh LAN wilayah. Rute tersebut diperoleh secara dinamis melalui OSPF, bukan dari static route.
+
+![Tabel routing R-BARAT](screenshot/soal7-ospf-route-barat.png)
+
+Pada R-BARAT terdapat entri `O*E2 0.0.0.0/0` yang menunjukkan bahwa default route menuju internet diperoleh secara otomatis dari R-PUSAT melalui OSPF.
+
+**3. Verifikasi Passive Interface**
+
+```cisco
+show ip protocols
+```
+
+![Passive interface pada R-BARAT](screenshot/soal7-ospf-passive.png)
+
+Interface GigabitEthernet0/0 dan GigabitEthernet0/1 tercantum sebagai *Passive Interface(s)*, sehingga router tidak mengirimkan pesan OSPF ke arah LAN pengguna.
+
+**4. Pengujian Konektivitas**
+
+Pengujian dilakukan dari **PC-PUSKESMAS** (Surabaya Barat) menuju **PC-SENSOR-BANJIR** (Surabaya Timur) dan menuju `8.8.8.8`:
+
+| Sumber Pengujian | Tujuan | Hasil |
+|---|---|---|
+| PC-PUSKESMAS | PC-SENSOR-BANJIR (10.57.32.10) | Berhasil |
+| PC-PUSKESMAS | SERVER-INTERNET (8.8.8.8) | Berhasil |
+
+![Ping antarwilayah dan internet melalui OSPF](screenshot/soal7-ospf-ping.png)
+
+Hasil tersebut menunjukkan bahwa komunikasi antarwilayah dan akses internet tetap berjalan setelah static route digantikan oleh OSPF.
+
+### Pengujian Failover
+
+Pengujian failover dilakukan untuk membuktikan bahwa konektivitas pulih secara otomatis ketika salah satu link backbone terputus. Pengujian menggunakan lalu lintas dari **PC-PEGAWAI** (Balai Kota) menuju **PC-SENSOR-LALIN** (Surabaya Utara, `10.56.64.10`), dengan link utama L2 antara R-PUSAT dan R-UTARA sebagai link yang diputus.
+
+**1. Jalur Sebelum Link Diputus**
+
+```cmd
+tracert 10.56.64.10
+```
+
+![Tracert sebelum link L2 diputus](screenshot/soal7-failover-tracert-sebelum.png)
+
+Paket melewati tiga hop, yaitu R-PUSAT (`10.57.192.1`), R-UTARA melalui link L2 (`10.56.66.2`), kemudian perangkat tujuan.
+
+**2. Pemutusan Link Utama**
+
+Ping dijalankan terus-menerus dari PC-PEGAWAI menggunakan perintah `ping -t 10.56.64.10`. Selama ping berjalan, link L2 diputus dengan mematikan interface Serial0/0/1 pada R-PUSAT:
+
+```cisco
+interface Serial0/0/1
+ shutdown
+```
+
+![Ping terus-menerus saat link L2 diputus](screenshot/soal7-failover-ping.png)
+
+Ping sempat menampilkan *Request timed out*, kemudian balasan kembali diterima tanpa perubahan konfigurasi apa pun.
+
+**3. Jalur Setelah Link Diputus**
+
+![Tracert setelah link L2 diputus](screenshot/soal7-failover-tracert-sesudah.png)
+
+Paket kini melewati empat hop, yaitu R-PUSAT (`10.57.192.1`), R-DC melalui link L1 (`10.56.161.2`), R-UTARA melalui link L7 (`10.56.161.6`), kemudian perangkat tujuan.
+
+![Rute OSPF pada R-PUSAT setelah link L2 diputus](screenshot/soal7-failover-route-pusat.png)
+
+Tabel routing R-PUSAT menunjukkan bahwa rute menuju jaringan Surabaya Utara berpindah ke *next-hop* `10.56.161.2` (R-DC).
+
+**4. Pemulihan Link**
+
+Setelah pengujian, link L2 diaktifkan kembali menggunakan perintah `no shutdown` pada interface Serial0/0/1 R-PUSAT. Tetangga OSPF kembali berstatus `FULL` dan jalur menuju Surabaya Utara kembali melalui link L2.
+
+### Analisis Hasil Failover
+
+Setiap router OSPF menyimpan peta seluruh jaringan dan menghitung jalur dengan total cost terkecil. Perbandingan cost dari R-PUSAT menuju R-UTARA adalah sebagai berikut:
+
+| Jalur | Perhitungan Cost | Total | Keterangan |
+|---|---|---|---|
+| Melalui L2 | 64 | 64 | Jalur utama |
+| Melalui L1 dan L7 | 64 + 200 | 264 | Jalur cadangan |
+
+Selama link L2 aktif, jalur melalui L2 dipilih karena memiliki cost terkecil. Ketika L2 terputus, hubungan tetangga antara R-PUSAT dan R-UTARA hilang, kemudian OSPF menghitung ulang jalur dan memasang jalur melalui L1 dan L7 ke tabel routing secara otomatis. Mekanisme ini tidak dimiliki oleh static route, karena static route tidak dapat berpindah jalur tanpa perubahan konfigurasi secara manual.
+
 # Soal 8 - Layanan Aplikasi Smart City
 
 Konfigurasi layanan aplikasi dilakukan agar jaringan Smart City Kota Surabaya menyediakan layanan DNS, web, FTP, dan email yang dapat diakses dari seluruh wilayah. Sesuai ketentuan tugas untuk **Kelompok 7**, seluruh layanan menggunakan domain internal `k7.smartcity.lab`.
