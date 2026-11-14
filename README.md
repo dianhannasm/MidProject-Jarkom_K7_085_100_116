@@ -548,3 +548,139 @@ Router menentukan jalur penerusan paket berdasarkan prinsip **Longest Prefix Mat
 Protokol **GRE (Generic Routing Encapsulation)** dirancang semata-mata untuk fungsi **enkapsulasi**, yaitu membungkus paket IP asli ke dalam *header* GRE dan *header* IP luar baru agar paket dapat melintasi jaringan perantara seolah-olah melalui koneksi *point-to-point* langsung.
 
 GRE tidak memiliki mekanisme kriptografi—baik algoritma enkripsi untuk menjaga kerahasiaan data (*confidentiality*), *hashing* untuk menjamin keutuhan data (*integrity*), maupun autentikasi pengirim (*authentication*). Akibatnya, seluruh muatan (*payload*) paket yang melewati tunnel GRE tetap dikirim dalam bentuk *plaintext* dan masih dapat dibaca apabila lalu lintas disadap (*packet sniffing*) di jalur backbone. Untuk mengamankan isi paket di dalam terowongan GRE, diperlukan protokol keamanan tambahan seperti **IPsec** (*GRE over IPsec*).
+
+# Soal 8 - Layanan Aplikasi Smart City
+
+Konfigurasi layanan aplikasi dilakukan agar jaringan Smart City Kota Surabaya menyediakan layanan DNS, web, FTP, dan email yang dapat diakses dari seluruh wilayah. Sesuai ketentuan tugas untuk **Kelompok 7**, seluruh layanan menggunakan domain internal `k7.smartcity.lab`.
+
+Layanan dibagi ke dua server sesuai ketentuan soal:
+
+| Layanan | Server | Alamat IP | Nama Domain |
+|---|---|---|---|
+| DNS | SERVER-DC (LAN Server dan Storage DC) | 10.56.160.2 | - |
+| Web | SERVER-BALAI (LAN Server Balai Kota) | 10.57.200.2 | www.k7.smartcity.lab |
+| FTP | SERVER-DC (LAN Server dan Storage DC) | 10.56.160.2 | ftp.k7.smartcity.lab |
+| Email | SERVER-BALAI (LAN Server Balai Kota) | 10.57.200.2 | mail.k7.smartcity.lab |
+
+Kedua server menggunakan alamat IP statis (Soal 4). Seluruh perangkat pengguna sudah memperoleh alamat DNS Server `10.56.160.2` melalui DHCP, sehingga tidak diperlukan pengaturan DNS secara manual pada sisi klien.
+
+### 8a. DNS
+
+Layanan DNS dijalankan pada **SERVER-DC** melalui menu **Services → DNS**. Layanan diaktifkan (**On**), kemudian ditambahkan tiga *A Record* agar nama `www`, `ftp`, dan `mail` dapat diterjemahkan ke alamat server yang sesuai:
+
+| Name | Type | Address | Keterangan |
+|---|---|---|---|
+| www.k7.smartcity.lab | A Record | 10.57.200.2 | Web pada SERVER-BALAI |
+| ftp.k7.smartcity.lab | A Record | 10.56.160.2 | FTP pada SERVER-DC |
+| mail.k7.smartcity.lab | A Record | 10.57.200.2 | Email pada SERVER-BALAI |
+
+![Konfigurasi DNS pada SERVER-DC](screenshot/soal8a-dns-config.png)
+
+Pengujian dilakukan menggunakan perintah `nslookup` dari dua wilayah berbeda, yaitu Surabaya Barat (**PC-PUSKESMAS**) dan Pelabuhan (**PC-KANTOR-PELABUHAN**):
+
+```cmd
+nslookup www.k7.smartcity.lab
+nslookup ftp.k7.smartcity.lab
+nslookup mail.k7.smartcity.lab
+```
+
+![nslookup dari Surabaya Barat](screenshot/soal8a-nslookup-barat.png)
+
+![nslookup dari Pelabuhan](screenshot/soal8a-nslookup-pelabuhan.png)
+
+Hasil pengujian menunjukkan bahwa ketiga nama dijawab oleh server `10.56.160.2` dengan alamat yang sesuai tabel record.
+
+### 8b. Web
+
+Layanan web dijalankan pada **SERVER-BALAI** melalui menu **Services → HTTP**. Layanan HTTP diaktifkan (**On**), kemudian berkas `index.html` bawaan diganti dengan halaman "Portal Smart City Surabaya" yang mencantumkan nomor kelompok:
+
+```html
+<html>
+<head><title>Portal Smart City Surabaya</title></head>
+<body>
+<center>
+<h1>Portal Smart City Surabaya</h1>
+<h3>Kelompok 7</h3>
+<p>Mid-Project Komunikasi Data dan Jaringan Komputer</p>
+</center>
+</body>
+</html>
+```
+
+![Konfigurasi HTTP pada SERVER-BALAI](screenshot/soal8b-http-config.png)
+
+Pengujian dilakukan melalui **Desktop → Web Browser** dengan membuka nama domain `http://www.k7.smartcity.lab` (bukan alamat IP) dari Surabaya Barat dan Pelabuhan:
+
+![Akses web dari Surabaya Barat](screenshot/soal8b-web-barat.png)
+
+![Akses web dari Pelabuhan](screenshot/soal8b-web-pelabuhan.png)
+
+Hasil pengujian menunjukkan bahwa halaman portal dapat dibuka menggunakan nama domain dari kedua wilayah.
+
+### 8c. FTP
+
+Layanan FTP dijalankan pada **SERVER-DC** melalui menu **Services → FTP** sebagai penyimpanan rekaman CCTV. Layanan diaktifkan (**On**), kemudian dibuat satu akun login khusus untuk perangkat CCTV:
+
+| Username | Password | Izin |
+|---|---|---|
+| cctv | cctv123 | Write, Read, Delete, Rename, List (RWDNL) |
+
+![Konfigurasi FTP pada SERVER-DC](screenshot/soal8c-ftp-config.png)
+
+Pengujian dilakukan dari **PC-CCTV-KOTA** yang berada pada LAN CCTV Kota. Berkas `rekaman-cctv.txt` dibuat melalui **Desktop → Text Editor**, kemudian diunggah ke server melalui Command Prompt:
+
+```cmd
+ftp ftp.k7.smartcity.lab
+put rekaman-cctv.txt
+dir
+quit
+```
+
+![Unggah berkas dari PC-CCTV-KOTA](screenshot/soal8c-ftp-upload.png)
+
+Login menggunakan akun `cctv` berhasil, berkas terkirim, dan perintah `dir` menampilkan berkas `rekaman-cctv.txt` pada server. Berkas tersebut juga terlihat pada daftar berkas FTP di SERVER-DC:
+
+![Berkas rekaman pada SERVER-DC](screenshot/soal8c-ftp-server-file.png)
+
+### 8d. Email
+
+Layanan email dijalankan pada **SERVER-BALAI** melalui menu **Services → EMAIL**. Layanan SMTP dan POP3 diaktifkan (**On**), domain diatur menjadi `k7.smartcity.lab`, kemudian dibuat dua akun untuk pengguna di Balai Kota dan di Pelabuhan:
+
+| User | Password | Digunakan pada |
+|---|---|---|
+| pegawai | pegawai123 | PC-PEGAWAI (Balai Kota) |
+| pelabuhan | pelabuhan123 | PC-KANTOR-PELABUHAN (Pelabuhan) |
+
+![Konfigurasi email pada SERVER-BALAI](screenshot/soal8d-email-server.png)
+
+Klien email dikonfigurasi pada kedua perangkat melalui **Desktop → Email → Configure Mail**:
+
+| Parameter | PC-PEGAWAI | PC-KANTOR-PELABUHAN |
+|---|---|---|
+| Your Name | Pegawai Balai Kota | Kantor Pelabuhan |
+| Email Address | pegawai@k7.smartcity.lab | pelabuhan@k7.smartcity.lab |
+| Incoming Mail Server | mail.k7.smartcity.lab | mail.k7.smartcity.lab |
+| Outgoing Mail Server | mail.k7.smartcity.lab | mail.k7.smartcity.lab |
+| User Name | pegawai | pelabuhan |
+| Password | pegawai123 | pelabuhan123 |
+
+Pengujian dilakukan secara dua arah. Email dikirim dari PC-PEGAWAI ke `pelabuhan@k7.smartcity.lab`, kemudian diterima pada PC-KANTOR-PELABUHAN:
+
+![Pengiriman email dari Balai Kota](screenshot/soal8d-email-kirim-pegawai.png)
+
+![Email diterima di Pelabuhan](screenshot/soal8d-email-terima-pelabuhan.png)
+
+Balasan dikirim dari PC-KANTOR-PELABUHAN ke `pegawai@k7.smartcity.lab`, kemudian diterima pada PC-PEGAWAI:
+
+![Balasan diterima di Balai Kota](screenshot/soal8d-email-terima-pegawai.png)
+
+Karena SERVER-BALAI berada pada LAN Server Balai Kota, lalu lintas email dari Pelabuhan menuju server diteruskan melalui Tunnel GRE sesuai static route pada Soal 6.
+
+### Ringkasan Pengujian Layanan Aplikasi
+
+| Layanan | Sumber Pengujian | Hasil |
+|---|---|---|
+| DNS (`nslookup` www, ftp, mail) | PC-PUSKESMAS, PC-KANTOR-PELABUHAN | Berhasil |
+| Web melalui nama domain | PC-PUSKESMAS, PC-KANTOR-PELABUHAN | Berhasil |
+| FTP login dan unggah berkas | PC-CCTV-KOTA | Berhasil |
+| Email dua arah | PC-PEGAWAI, PC-KANTOR-PELABUHAN | Berhasil |
