@@ -337,3 +337,214 @@ Verifikasi pada R-PELABUHAN:
 
 Hasil tersebut membuktikan bahwa PC-SCADA dan PC-KANTOR-PELABUHAN telah memperoleh alamat IP melalui DHCP pada R-PELABUHAN.
 
+# Soal 5 - Konfigurasi NAT Overload (PAT)
+
+Konfigurasi **Network Address Translation (NAT) Overload** atau **Port Address Translation (PAT)** dilakukan pada **R-PUSAT** agar seluruh perangkat pengguna di jaringan internal Smart City Kota Surabaya dapat mengakses jaringan internet (`8.8.8.8`) menggunakan satu alamat IP publik milik R-PUSAT.
+
+Sesuai ketentuan tugas untuk **Kelompok 7 ($K = 7$)**, koneksi antara R-PUSAT dan R-ISP menggunakan blok alamat publik `203.0.113.28/30`, sedangkan jaringan internet direpresentasikan oleh `SERVER-INTERNET` pada subnet `8.8.8.0/24`. Pada sisi R-ISP tidak dikonfigurasikan rute menuju jaringan privat internal (`10.56.0.0/15`), sehingga komunikasi menuju internet sepenuhnya bergantung pada proses translasi alamat di R-PUSAT.
+
+### Alokasi Pengalamatan IP Publik dan Internet
+
+Sebelum mengaktifkan NAT Overload, dilakukan konfigurasi pengalamatan IP pada jalur penghubung antara R-PUSAT, R-ISP, dan SERVER-INTERNET sesuai perhitungan $K = 7$:
+
+| Perangkat | Interface | IP Address | Subnet Mask | Keterangan |
+|---|---|---|---|---|
+| R-PUSAT | Serial0/2/1 | 203.0.113.29 | 255.255.255.252 | Interface publik (`ip nat outside`) menuju R-ISP |
+| R-ISP | Serial0/0/0 | 203.0.113.30 | 255.255.255.252 | Interface serial menuju R-PUSAT |
+| R-ISP | GigabitEthernet0/0 | 8.8.8.1 | 255.255.255.0 | Gateway jaringan internet |
+| SERVER-INTERNET | FastEthernet0 | 8.8.8.8 | 255.255.255.0 | Server tujuan pengujian akses internet |
+
+### Konfigurasi pada R-ISP
+
+R-ISP dikonfigurasikan dengan alamat IP pada interface yang mengarah ke R-PUSAT dan SERVER-INTERNET tanpa menambahkan static route maupun default route menuju blok alamat privat `10.0.0.0/8`:
+
+```cisco
+interface GigabitEthernet0/0
+ ip address 8.8.8.1 255.255.255.0
+ no shutdown
+!
+interface Serial0/0/0
+ ip address 203.0.113.30 255.255.255.252
+ no shutdown
+```
+
+### Konfigurasi Interface Inside dan Outside pada R-PUSAT
+
+Agar host dari seluruh wilayah (Balai Kota, DC, Utara, Barat, Timur, Selatan, dan Pelabuhan) dapat ditranslasikan saat mengakses internet, seluruh interface internal R-PUSAT ditetapkan sebagai `ip nat inside`, sedangkan interface yang terhubung ke R-ISP ditetapkan sebagai `ip nat outside`.
+
+| Interface R-PUSAT | Alamat IP | Peran NAT | Koneksi Jaringan |
+|---|---|---|---|
+| Serial0/2/1 | 203.0.113.29/30 | `ip nat outside` | Link menuju R-ISP |
+| GigabitEthernet0/0 | 10.57.192.1/21 | `ip nat inside` | LAN Pegawai Balai Kota |
+| GigabitEthernet0/1 | 10.57.200.1/27 | `ip nat inside` | LAN Server Balai Kota |
+| Serial0/0/0 | 10.56.161.1/30 | `ip nat inside` | Link L1 menuju R-DC |
+| Serial0/0/1 | 10.56.66.1/30 | `ip nat inside` | Link L2 menuju R-UTARA & R-PELABUHAN |
+| Serial0/1/0 | 10.57.96.129/30 | `ip nat inside` | Link L3 menuju R-SELATAN |
+| Serial0/1/1 | 10.57.36.1/30 | `ip nat inside` | Link L4 menuju R-TIMUR |
+| Serial0/2/0 | 10.56.225.1/30 | `ip nat inside` | Link L5 menuju R-BARAT |
+
+### Konfigurasi Access-List dan PAT pada R-PUSAT
+
+Selanjutnya dibuat Standard Access-List (`access-list 10`) untuk mengizinkan seluruh lalu lintas dari jaringan internal `10.0.0.0/8` dan menghubungkannya dengan interface keluar `Serial0/2/1` menggunakan opsi `overload`:
+
+```cisco
+interface Serial0/2/1
+ ip nat outside
+!
+interface GigabitEthernet0/0
+ ip nat inside
+interface GigabitEthernet0/1
+ ip nat inside
+interface Serial0/0/0
+ ip nat inside
+interface Serial0/0/1
+ ip nat inside
+interface Serial0/1/0
+ ip nat inside
+interface Serial0/1/1
+ ip nat inside
+interface Serial0/2/0
+ ip nat inside
+!
+ip route 0.0.0.0 0.0.0.0 203.0.113.30
+!
+access-list 10 permit 10.0.0.0 0.255.255.255
+ip nat inside source list 10 interface Serial0/2/1 overload
+```
+
+Dengan opsi `overload`, R-PUSAT menerjemahkan banyak alamat IP privat internal menjadi satu alamat IP publik (`203.0.113.29`) secara bersamaan dengan membedakan nomor port pada setiap sesi komunikasi.
+
+### Pengujian dan Verifikasi NAT Overload
+
+Pengujian dilakukan melalui tiga tahap verifikasi untuk memastikan seluruh ketentuan Soal 5 terpenuhi:
+
+**1. Pengujian Konektivitas Internet (`ping 8.8.8.8`)**
+
+Pengujian dilakukan dari perangkat pengguna pada beberapa wilayah menuju alamat `8.8.8.8` (`SERVER-INTERNET`):
+
+| Sumber Pengujian | IPv4 Perangkat | Tujuan | Hasil |
+|---|---|---|---|
+| PC-PEGAWAI | 10.57.192.10 | 8.8.8.8 | Berhasil (0% loss) |
+| PC-KANTOR-PELABUHAN | 10.57.160.10 | 8.8.8.8 | Berhasil (0% loss) |
+
+**2. Verifikasi Tabel Translasi NAT pada R-PUSAT**
+
+Pemeriksaan tabel translasi dilakukan pada R-PUSAT menggunakan perintah:
+
+```cisco
+show ip nat translations
+```
+
+<img width="1807" height="763" alt="Screenshot 2026-11-14 164645" src="https://github.com/user-attachments/assets/705f82f8-ea8a-48f1-960e-9d48b888e2b9" />
+
+
+Hasil verifikasi menunjukkan bahwa alamat IP privat dari berbagai subnet (`10.57.160.10` dan `10.57.192.10`) tercatat pada kolom **Inside local** dan diterjemahkan menjadi satu IP publik `203.0.113.29` pada kolom **Inside global** dengan pembeda nomor port (`203.0.113.29:1`–`4` dan `203.0.113.29:59`–`62`).
+
+**3. Verifikasi Tabel Routing pada R-ISP**
+
+Pemeriksaan tabel routing dilakukan pada R-ISP menggunakan perintah:
+
+```cisco
+show ip route
+```
+
+<img width="701" height="714" alt="image" src="https://github.com/user-attachments/assets/a9af1667-de14-4ca3-9087-bba5303d9798" />
+
+Hasil pemeriksaan membuktikan bahwa R-ISP hanya memiliki entri rute terhubung langsung (`C` dan `L`) untuk jaringan `8.8.8.0/24` dan `203.0.113.28/30`, serta tidak memiliki rute menuju jaringan privat `10.0.0.0/8`. Hal ini membuktikan bahwa akses internet dari jaringan internal berjalan melalui mekanisme NAT Overload pada R-PUSAT.
+
+# Soal 6 - Konfigurasi Tunnel GRE
+
+Konfigurasi **Generic Routing Encapsulation (GRE) Tunnel** dilakukan untuk membentuk jalur komunikasi virtual *point-to-point* secara langsung antara **R-PUSAT** dan **R-PELABUHAN** melalui jaringan backbone yang melewati R-UTARA.
+
+Dengan adanya tunnel ini, pertukaran data antara jaringan Balai Kota (`Pegawai Balai Kota` dan `Server Balai Kota`) dengan jaringan Pelabuhan (`Sensor dan SCADA Pelabuhan` dan `Kantor Pelabuhan`) diteruskan melalui terowongan logis tanpa perlu melalui proses routing hop-demi-hop pada router perantara (R-UTARA).
+
+### Alokasi Pengalamatan Tunnel GRE
+
+Sesuai ketentuan tugas untuk **Kelompok 7 ($K = 7$)**, interface virtual `Tunnel0` menggunakan blok alamat `192.168.7.0/30` dengan titik akhir (*tunnel endpoint*) mengacu pada interface fisik serial masing-masing router yang terhubung ke jaringan backbone:
+
+| Perangkat | Interface Tunnel | IP Tunnel | Subnet Mask | Tunnel Source | Tunnel Destination |
+|---|---|---|---|---|---|
+| R-PUSAT | Tunnel0 | 192.168.7.1 | 255.255.255.252 | Serial0/0/1 (10.56.66.1) | 10.57.160.130 (Serial0/0/0 R-PELABUHAN) |
+| R-PELABUHAN | Tunnel0 | 192.168.7.2 | 255.255.255.252 | Serial0/0/0 (10.57.160.130) | 10.56.66.1 (Serial0/0/1 R-PUSAT) |
+
+### Konfigurasi Tunnel GRE dan Routing pada R-PUSAT
+
+Pada **R-PUSAT**, static route lama menuju subnet Pelabuhan yang sebelumnya melewati R-UTARA (`10.56.66.2`) dihapus terlebih dahulu agar tidak terjadi *load-balancing* jalur. Selanjutnya dibuat interface `Tunnel0` dan ditambahkan static route baru yang mengarahkan lalu lintas menuju subnet Pelabuhan ke alamat tunnel `192.168.7.2`:
+
+```cisco
+no ip route 10.57.128.0 255.255.224.0 10.56.66.2
+no ip route 10.57.160.0 255.255.255.128 10.56.66.2
+!
+interface Tunnel0
+ ip address 192.168.7.1 255.255.255.252
+ tunnel source Serial0/0/1
+ tunnel destination 10.57.160.130
+ tunnel mode gre ip
+ no shutdown
+!
+ip route 10.57.128.0 255.255.224.0 192.168.7.2
+ip route 10.57.160.0 255.255.255.128 192.168.7.2
+```
+
+### Konfigurasi Tunnel GRE dan Routing pada R-PELABUHAN
+
+Pada **R-PELABUHAN**, dibuat interface `Tunnel0` yang mengarah ke interface fisik R-PUSAT (`10.56.66.1`), kemudian ditambahkan static route spesifik menuju subnet Pegawai Balai Kota dan Server Balai Kota melalui alamat tunnel `192.168.7.1`. Sementara itu, default route menuju R-UTARA (`10.57.160.129`) tetap dipertahankan untuk lalu lintas umum dan akses internet:
+
+```cisco
+interface Tunnel0
+ ip address 192.168.7.2 255.255.255.252
+ tunnel source Serial0/0/0
+ tunnel destination 10.56.66.1
+ tunnel mode gre ip
+ no shutdown
+!
+ip route 10.57.192.0 255.255.248.0 192.168.7.1
+ip route 10.57.200.0 255.255.255.224 192.168.7.1
+```
+
+### Pengujian dan Verifikasi Tunnel GRE
+
+**1. Verifikasi Status Interface Tunnel0**
+
+Pemeriksaan status interface dilakukan pada R-PUSAT dan R-PELABUHAN menggunakan perintah:
+
+```cisco
+show ip interface brief
+```
+
+<img width="699" height="315" alt="image" src="https://github.com/user-attachments/assets/abc87941-79db-4daa-9b74-676bbc6bd737" />
+
+<img width="696" height="314" alt="image" src="https://github.com/user-attachments/assets/795eb4ba-857c-4a86-8479-391c2ea3f98e" />
+
+Hasil verifikasi menunjukkan bahwa interface `Tunnel0` pada R-PUSAT (`192.168.7.1`) maupun R-PELABUHAN (`192.168.7.2`) berada dalam kondisi `up/up`, menandakan terowongan virtual telah terbentuk dan siap meneruskan paket.
+
+**2. Pelacakan Jalur Paket (`tracert`) Antar-LAN**
+
+Pengujian jalur dilakukan dari **PC-PEGAWAI** (`10.57.192.10`) menuju **PC-KANTOR-PELABUHAN** (`10.57.160.10`) menggunakan perintah `tracert`:
+
+```cmd
+tracert 10.57.160.10
+```
+
+<img width="700" height="710" alt="Screenshot 2026-11-14 170132 edit" src="https://github.com/user-attachments/assets/4a26c1b9-df7a-487c-821d-28eb119e19ec" />
+
+Hasil `tracert` menunjukkan paket melewati rute berikut:
+1. **Hop 1 (`10.57.192.1`)**: Default gateway pada R-PUSAT.
+2. **Hop 2 (`192.168.7.2`)**: Ujung interface `Tunnel0` milik R-PELABUHAN.
+3. **Hop 3 (`10.57.160.10`)**: Perangkat tujuan PC-KANTOR-PELABUHAN.
+
+Terlihat bahwa lalu lintas dari Balai Kota ke Pelabuhan hanya membutuhkan 3 hop dan langsung diteruskan melalui `192.168.7.2` tanpa melewati hop router perantara R-UTARA.
+
+### Analisis Konsep Tunnel GRE
+
+**1. Mengapa Router Memilih Jalur Tunnel Dibandingkan Jalur Lain ke Pelabuhan?**
+
+Router menentukan jalur penerusan paket berdasarkan prinsip **Longest Prefix Match**, yaitu memprioritaskan entri rute di tabel routing yang memiliki *subnet mask* (panjang prefix) paling spesifik:
+- Pada **R-PELABUHAN**, lalu lintas umum diteruskan menggunakan default route `0.0.0.0/0` menuju R-UTARA. Ketika ditambahkan static route spesifik menuju subnet Pegawai Balai Kota (`10.57.192.0/21`) dan Server Balai Kota (`10.57.200.0/27`) dengan *next-hop* `192.168.7.1`, prefix `/21` dan `/27` jauh lebih spesifik dibandingkan `/0`, sehingga router otomatis memilih jalur tunnel.
+- Pada **R-PUSAT**, rute menuju subnet Pelabuhan (`10.57.128.0/19` dan `10.57.160.0/25`) diarahkan secara spesifik ke *next-hop* `192.168.7.2` menggantikan rute fisik lama via R-UTARA. Secara logis, R-PUSAT melihat R-PELABUHAN terhubung langsung dalam satu subnet point-to-point `192.168.7.0/30`.
+
+**2. Mengapa GRE Saja Tidak Mengenkripsi Data?**
+
+Protokol **GRE (Generic Routing Encapsulation)** dirancang semata-mata untuk fungsi **enkapsulasi**, yaitu membungkus paket IP asli ke dalam *header* GRE dan *header* IP luar baru agar paket dapat melintasi jaringan perantara seolah-olah melalui koneksi *point-to-point* langsung.
+
+GRE tidak memiliki mekanisme kriptografi—baik algoritma enkripsi untuk menjaga kerahasiaan data (*confidentiality*), *hashing* untuk menjamin keutuhan data (*integrity*), maupun autentikasi pengirim (*authentication*). Akibatnya, seluruh muatan (*payload*) paket yang melewati tunnel GRE tetap dikirim dalam bentuk *plaintext* dan masih dapat dibaca apabila lalu lintas disadap (*packet sniffing*) di jalur backbone. Untuk mengamankan isi paket di dalam terowongan GRE, diperlukan protokol keamanan tambahan seperti **IPsec** (*GRE over IPsec*).
