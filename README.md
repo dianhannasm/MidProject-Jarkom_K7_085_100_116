@@ -5,7 +5,7 @@
 |:---:|---|
 | 5027251085 | Marvelino Davas |
 | 5027251100 | Farrel Muhammad Athasyah Enrizy |
-| 502725116 | Dian Hanna Simanjuntak |  
+| 5027251116 | Dian Hanna Simanjuntak |  
   
   
 
