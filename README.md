@@ -1,4 +1,13 @@
-# MidProject-Jarkom_K7_085_100_116
+# MidProject-Jarkom_K7_085_100_116  
+## Anggota Kelompok 7
+
+| NRP | Nama |
+|:---:|---|
+| 5027251085 | Marvelino Davas |
+| 5027251100 | Farrel Muhammad Athasyah Enrizy |
+| 502725116 | Dian Hanna Simanjuntak |  
+  
+  
 
 # Soal 1 - Topologi
 
